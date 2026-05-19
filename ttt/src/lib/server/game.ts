@@ -210,6 +210,27 @@ async function generateTrashTalk(): Promise<string> {
 	return "Out of words? I'm not surprised.";
 }
 
+function boardAdvantage(ai: Player): 'ahead' | 'behind' | 'close' {
+	const human: Player = ai === 'X' ? 'O' : 'X';
+	let aiThreats = 0;
+	let humanThreats = 0;
+	for (const combo of WINNING_COMBOS) {
+		let aiCount = 0, humanCount = 0;
+		for (const ci of combo) {
+			if (state.board[ci] === ai) aiCount++;
+			else if (state.board[ci] === human) humanCount++;
+		}
+		if (aiCount > 0 && humanCount > 0) continue;
+		if (aiCount >= 3) aiThreats += aiCount * 10;
+		else if (aiCount >= 2) aiThreats += aiCount * 2;
+		if (humanCount >= 3) humanThreats += humanCount * 10;
+		else if (humanCount >= 2) humanThreats += humanCount * 2;
+	}
+	if (humanThreats > aiThreats * 1.3) return 'behind';
+	if (aiThreats > humanThreats * 1.3) return 'ahead';
+	return 'close';
+}
+
 async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const player = state.currentPlayer;
 	const opponent: Player = player === 'X' ? 'O' : 'X';
@@ -217,12 +238,20 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const smartMove = findBestMove();
 	const smartScore = smartMove >= 0 ? evaluateMove(smartMove, player) : 0;
 
+	const advantage = boardAdvantage(player);
+	const trashTone = advantage === 'behind'
+		? `The human is currently winning. Sound frustrated, humbled, desperate — like you're struggling to keep up.`
+		: advantage === 'ahead'
+			? `You are winning. Sound cocky, arrogant, like you're toying with them.`
+			: `The game is close. Sound determined and confident — respectful but still trash-talking.`;
+
 	const boardText = buildBoardText();
 	const userMessage = [
 		`Current board (20x20, 5-in-a-row):`,
 		boardText,
 		``,
 		`You are ${player}. Opponent is ${opponent}.`,
+		`${advantage === 'behind' ? 'You are losing.' : advantage === 'ahead' ? 'You are winning.' : 'The game is close.'}`,
 		``,
 		`STRATEGIC THINKING:`,
 		`- Look for 5-in-a-row patterns: horizontal, vertical, both diagonals.`,
@@ -232,9 +261,10 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 		``,
 		`Output exactly two lines:`,
 		`My Move: (Row, Col)`,
-		`Trash Talk: <creative, cocky one-liner taunting the human opponent>`,
+		`Trash Talk: <one-liner>`,
 		``,
-		`Both lines are MANDATORY. Be creative with the trash talk — make it fresh, not generic.`
+		`Trash Talk tone: ${trashTone}`,
+		`Both lines are MANDATORY. Be creative — make it fresh, not generic.`
 	].join('\n');
 
 	const res = await fetch('http://localhost:11434/api/chat', {
