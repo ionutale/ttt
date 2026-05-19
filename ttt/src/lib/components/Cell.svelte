@@ -11,7 +11,9 @@
 </script>
 
 <button
-	class="btn btn-lg btn-outline h-24 w-24 text-4xl font-bold"
+	class="flex items-center justify-center border border-base-300 rounded-sm size-6 text-xs font-bold
+		hover:bg-base-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer
+		transition-colors select-none"
 	{disabled}
 	{onclick}
 >

@@ -1,46 +1,165 @@
-type Player = 'X' | 'O';
-type Cell = Player | null;
+import { GRID_SIZE } from '$lib/constants';
 
-const WINNING_COMBOS = [
-	[0, 1, 2], [3, 4, 5], [6, 7, 8],
-	[0, 3, 6], [1, 4, 7], [2, 5, 8],
-	[0, 4, 8], [2, 4, 6]
-];
+type Player = 'X' | 'O';
+
+interface ChatMessage {
+	role: 'human' | 'ai';
+	text: string;
+}
+
+interface HistoryEntry {
+	player: Player;
+	index: number;
+	timestamp: string;
+	durationMs: number | null;
+}
+
+interface GameState {
+	board: (Player | null)[];
+	currentPlayer: Player;
+	winner: Player | 'draw' | null;
+	mode: 'pvp' | 'ai';
+	aiPlayer: Player;
+	aiModel: string;
+	gameActive: boolean;
+	error: string | null;
+	history: HistoryEntry[];
+}
+
+const EMPTY_BOARD = Array(GRID_SIZE * GRID_SIZE).fill(null) as (Player | null)[];
+
+function defaultState(): GameState {
+	return {
+		board: [],
+		currentPlayer: 'X',
+		winner: null,
+		mode: 'pvp',
+		aiPlayer: 'O',
+		aiModel: '',
+		gameActive: false,
+		error: null,
+		history: [],
+	};
+}
 
 function createGame() {
-	let board = $state<Cell[]>(Array(9).fill(null));
-	let currentPlayer = $state<Player>('X');
-	let winner = $state<Player | 'draw' | null>(null);
+	let state = $state<GameState>(defaultState());
+	let loading = $state(false);
+	let chatMessages = $state<ChatMessage[]>([]);
 
-	function makeMove(index: number) {
-		if (board[index] !== null || winner !== null) return;
-		board[index] = currentPlayer;
-		if (checkWin(currentPlayer)) {
-			winner = currentPlayer;
-		} else if (board.every((cell) => cell !== null)) {
-			winner = 'draw';
-		} else {
-			currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+	async function startGame(mode: 'pvp' | 'ai', aiPlayer?: Player, aiModel?: string) {
+		state = {
+			board: [...EMPTY_BOARD],
+			currentPlayer: 'X',
+			winner: null,
+			mode,
+			aiPlayer: aiPlayer ?? 'O',
+			aiModel: aiModel ?? '',
+			gameActive: true,
+			error: null,
+			history: [],
+		};
+		loading = true;
+		try {
+			const res = await fetch('/api/game/start', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ mode, aiPlayer, aiModel })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				state = data;
+			} else {
+				state = { ...state, error: data.error || 'Failed to start game' };
+			}
+		} catch {
+			state = { ...state, error: 'Failed to connect to server' };
+		} finally {
+			loading = false;
 		}
 	}
 
-	function checkWin(player: Player): boolean {
-		return WINNING_COMBOS.some((combo) => combo.every((i) => board[i] === player));
+	async function makeMove(index: number) {
+		if (state.board[index] !== null || state.winner !== null) return;
+		loading = true;
+		try {
+			const res = await fetch('/api/game/move', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ index })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				state = data;
+			} else {
+				state = { ...state, error: data.error || 'Move failed' };
+			}
+		} catch {
+			state = { ...state, error: 'Failed to connect to server' };
+		} finally {
+			loading = false;
+		}
 	}
 
-	function reset() {
-		board = Array(9).fill(null);
-		currentPlayer = 'X';
-		winner = null;
+	async function retryAIMove() {
+		loading = true;
+		try {
+			const res = await fetch('/api/game/retry', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const data = await res.json();
+			if (res.ok) {
+				state = data;
+			} else {
+				state = { ...state, error: data.error || 'Retry failed' };
+			}
+		} catch {
+			state = { ...state, error: 'Failed to connect to server' };
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function sendChatMessage(text: string) {
+		chatMessages = [...chatMessages, { role: 'human', text }];
+		try {
+			const res = await fetch('/api/game/chat', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message: text })
+			});
+			const data = await res.json();
+			chatMessages = [...chatMessages, { role: 'ai', text: data.reply }];
+		} catch {
+			chatMessages = [...chatMessages, { role: 'ai', text: '...' }];
+		}
+	}
+
+	function quitGame() {
+		state = defaultState();
+		chatMessages = [];
 	}
 
 	return {
-		get board() { return board; },
-		get currentPlayer() { return currentPlayer; },
-		get winner() { return winner; },
+		get board() { return state.board; },
+		get currentPlayer() { return state.currentPlayer; },
+		get winner() { return state.winner; },
+		get mode() { return state.mode; },
+		get aiPlayer() { return state.aiPlayer; },
+		get aiModel() { return state.aiModel; },
+		get gameActive() { return state.gameActive; },
+		get error() { return state.error; },
+		get chatMessages() { return chatMessages; },
+		get history() { return state.history; },
+		get loading() { return loading; },
+		startGame,
 		makeMove,
-		reset
+		retryAIMove,
+		sendChatMessage,
+		quitGame,
 	};
 }
 
 export const game = createGame();
+export { GRID_SIZE };
