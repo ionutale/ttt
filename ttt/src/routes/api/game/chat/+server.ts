@@ -17,7 +17,7 @@ function buildGameContext(state: import('$lib/server/game').GameState): string {
 	const humanPlayer = state.aiPlayer === 'X' ? 'O' : 'X';
 	const lines: string[] = [];
 	lines.push(`You are playing as ${state.aiPlayer}. The human is ${humanPlayer}.`);
-	lines.push(`Board: ${GRID_SIZE}x${GRID_SIZE}, win by getting 4 in a row.`);
+	lines.push(`Board: ${GRID_SIZE}x${GRID_SIZE}, win by getting 5 in a row.`);
 	lines.push(`Current turn: ${state.currentPlayer}.`);
 
 	if (state.winner) {
@@ -50,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const context = buildGameContext(state);
 
 	const systemPrompt = [
-		`You are an AI playing a ${GRID_SIZE}x${GRID_SIZE} tic-tac-toe game (4 in a row to win) against a human.`,
+		`You are an AI playing a ${GRID_SIZE}x${GRID_SIZE} tic-tac-toe game (5 in a row to win) against a human.`,
 		`You are cocky, witty, and love to trash talk — but you're also capable of having a real conversation.`,
 		``,
 		`Game state:`,

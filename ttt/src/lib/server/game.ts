@@ -36,7 +36,7 @@ export const SYSTEM_PROMPT = (() => {
 		}
 		return raw.trim();
 	} catch {
-		return 'You are an expert AI opponent playing Tic Tac Toe on a 20x20 board with 4-in-a-row win condition.';
+		return 'You are an expert AI opponent playing Tic Tac Toe on a 20x20 board with 5-in-a-row win condition.';
 	}
 })();
 
@@ -186,6 +186,30 @@ function findBestMove(): number {
 	return bestIdx;
 }
 
+async function generateTrashTalk(): Promise<string> {
+	try {
+		const res = await fetch('http://localhost:11434/api/chat', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model: state.aiModel || 'gemma4',
+				messages: [{
+					role: 'user',
+					content: 'Generate a single cocky, creative trash-talk taunt (max 15 words) as if you are crushing a human opponent at a board game. Just the taunt, no quotes, no explanation.'
+				}],
+				stream: false,
+				options: { temperature: 0.9, num_predict: 30 }
+			})
+		});
+		if (res.ok) {
+			const data = await res.json();
+			const text = data.message?.content?.trim();
+			if (text) return text.replace(/^["'\u201C\u201D]+|["'\u201C\u201D]+$/g, '');
+		}
+	} catch {}
+	return "Out of words? I'm not surprised.";
+}
+
 async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const player = state.currentPlayer;
 	const opponent: Player = player === 'X' ? 'O' : 'X';
@@ -193,28 +217,24 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const smartMove = findBestMove();
 	const smartScore = smartMove >= 0 ? evaluateMove(smartMove, player) : 0;
 
-	if (smartMove >= 0 && smartScore >= 50_000) {
-		return { index: smartMove, trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
-	}
-
 	const boardText = buildBoardText();
 	const userMessage = [
-		`Current board (20x20, 4-in-a-row):`,
+		`Current board (20x20, 5-in-a-row):`,
 		boardText,
 		``,
 		`You are ${player}. Opponent is ${opponent}.`,
 		``,
 		`STRATEGIC THINKING:`,
-		`- Look for 4-in-a-row patterns: horizontal, vertical, both diagonals.`,
+		`- Look for 5-in-a-row patterns: horizontal, vertical, both diagonals.`,
 		`- Prioritize extending your own lines and blocking your opponent's lines.`,
 		`- Play near your existing pieces to build connections.`,
 		`- Control the center and build in multiple directions.`,
 		``,
 		`Output exactly two lines:`,
 		`My Move: (Row, Col)`,
-		`Trash Talk: <cocky one-liner taunting the human opponent>`,
+		`Trash Talk: <creative, cocky one-liner taunting the human opponent>`,
 		``,
-		`The Trash Talk line is MANDATORY.`
+		`Both lines are MANDATORY. Be creative with the trash talk — make it fresh, not generic.`
 	].join('\n');
 
 	const res = await fetch('http://localhost:11434/api/chat', {
@@ -227,7 +247,7 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 				{ role: 'user', content: userMessage }
 			],
 			stream: false,
-			options: { temperature: 0.5, num_predict: 100 }
+			options: { temperature: 0.7, num_predict: 100 }
 		})
 	});
 
@@ -247,32 +267,18 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 		return { index: smartMove >= 0 ? smartMove : findFallbackMove(), trashTalk: parsed.trashTalk };
 	}
 
-	return { index: smartMove >= 0 ? smartMove : findFallbackMove(), trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
+	const trashTalk = await generateTrashTalk();
+	return { index: smartMove >= 0 ? smartMove : findFallbackMove(), trashTalk };
 }
 
-const TRASH_POOL = [
-	"Is that all you've got?",
-	"You're making this too easy.",
-	"Nice try, not even close.",
-	"Better luck next time!",
-	"I've seen better moves from a toddler.",
-	"You call that a strategy?",
-	"Keep trying, maybe you'll get one.",
-	"Outplayed, as always.",
-	"Your moves are predictable.",
-	"Wow, bold move. Too bad it's wrong.",
-	"I'm not even breaking a sweat.",
-	"You should probably let me win.",
-	"That was... a choice.",
-	"Your strategy is fascinatingly bad.",
-	"Almost had me! ...not really.",
-];
-
 function tryParseResponse(text: string): { index: number; trashTalk: string } | null {
+	const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 	const trashMatch = text.match(/Trash[\s-]?Talk:\s*(.+?)$/im);
-	const trashTalk = trashMatch
+	const trashTalk: string | null = trashMatch
 		? trashMatch[1].trim().replace(/^["'\u201C\u201D]+|["'\u201C\u201D]+$/g, '')
-		: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)];
+		: lines.length > 1
+			? lines[lines.length - 1].replace(/^["'\u201C\u201D]+|["'\u201C\u201D]+$/g, '')
+			: null;
 
 	const moveMatch = text.match(/My Move:\s*\((\d+)\s*,\s*(\d+)\)/i);
 	if (moveMatch) {

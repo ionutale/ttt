@@ -39,7 +39,7 @@
 		<span class="text-cyan-400">TOE</span>
 	</h1>
 	<p class="mb-8 text-center text-xs uppercase tracking-widest text-base-content/40">
-		20×20 · 4 in a row
+		20×20 · 5 in a row
 	</p>
 
 	<div class="mb-6">
