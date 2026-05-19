@@ -131,18 +131,90 @@ function buildBoardText(): string {
 	return rows.join('\n');
 }
 
+function evaluateMove(index: number, player: Player): number {
+	const opponent: Player = player === 'X' ? 'O' : 'X';
+	let score = 0;
+	let proximityCount = 0;
+
+	const row = Math.floor(index / GRID_SIZE);
+	const col = index % GRID_SIZE;
+	for (let dr = -1; dr <= 1; dr++) {
+		for (let dc = -1; dc <= 1; dc++) {
+			if (dr === 0 && dc === 0) continue;
+			const nr = row + dr;
+			const nc = col + dc;
+			if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+				const neighbor = state.board[nr * GRID_SIZE + nc];
+				if (neighbor !== null) proximityCount++;
+			}
+		}
+	}
+	score += proximityCount * 2;
+
+	for (const combo of WINNING_COMBOS) {
+		if (!combo.includes(index)) continue;
+		let countAI = 0;
+		let countOpp = 0;
+		let emptySlots = 0;
+		for (const ci of combo) {
+			if (ci === index) { emptySlots++; continue; }
+			if (state.board[ci] === player) countAI++;
+			else if (state.board[ci] === opponent) countOpp++;
+			else emptySlots++;
+		}
+		if (countAI > 0 && countOpp > 0) continue;
+		if (countAI === 3 && emptySlots === 1) score += 100_000;
+		else if (countOpp === 3 && emptySlots === 1) score += 50_000;
+		else if (countAI === 2 && emptySlots >= 1) score += 1_000;
+		else if (countOpp === 2 && emptySlots >= 1) score += 500;
+		else if (countAI === 1 && emptySlots >= 1) score += 100;
+		else if (countOpp === 1 && emptySlots >= 1) score += 50;
+		else if (countAI === 0 && countOpp === 0 && emptySlots >= 1) score += 10;
+	}
+	return score;
+}
+
+function findBestMove(): number {
+	const ai = state.currentPlayer;
+	let bestIdx = -1;
+	let bestScore = -Infinity;
+	for (let i = 0; i < TOTAL_CELLS; i++) {
+		if (state.board[i] !== null) continue;
+		const s = evaluateMove(i, ai);
+		if (s > bestScore) { bestScore = s; bestIdx = i; }
+	}
+	return bestIdx;
+}
+
 async function callOllama(): Promise<{ index: number; trashTalk: string }> {
+	const player = state.currentPlayer;
+	const opponent: Player = player === 'X' ? 'O' : 'X';
+
+	const smartMove = findBestMove();
+	const smartScore = smartMove >= 0 ? evaluateMove(smartMove, player) : 0;
+
+	if (smartMove >= 0 && smartScore >= 50_000) {
+		return { index: smartMove, trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
+	}
+
 	const boardText = buildBoardText();
 	const userMessage = [
-		`Current board:`,
+		`Current board (20x20, 4-in-a-row):`,
 		boardText,
 		``,
-		`IGNORE the Communication Rules in the system prompt. Do NOT output the board. Do NOT explain your reasoning.`,
-		`You MUST output exactly two lines, no more, no less:`,
+		`You are ${player}. Opponent is ${opponent}.`,
+		``,
+		`STRATEGIC THINKING:`,
+		`- Look for 4-in-a-row patterns: horizontal, vertical, both diagonals.`,
+		`- Prioritize extending your own lines and blocking your opponent's lines.`,
+		`- Play near your existing pieces to build connections.`,
+		`- Control the center and build in multiple directions.`,
+		``,
+		`Output exactly two lines:`,
 		`My Move: (Row, Col)`,
 		`Trash Talk: <cocky one-liner taunting the human opponent>`,
 		``,
-		`The Trash Talk line is MANDATORY. You MUST include it every single time. Never skip it.`
+		`The Trash Talk line is MANDATORY.`
 	].join('\n');
 
 	const res = await fetch('http://localhost:11434/api/chat', {
@@ -155,7 +227,7 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 				{ role: 'user', content: userMessage }
 			],
 			stream: false,
-			options: { temperature: 0.7, num_predict: 80 }
+			options: { temperature: 0.5, num_predict: 100 }
 		})
 	});
 
@@ -167,9 +239,15 @@ async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const content: string = data.message?.content || '';
 
 	const parsed = tryParseResponse(content);
-	if (parsed !== null) return parsed;
+	if (parsed !== null) {
+		const parsedScore = evaluateMove(parsed.index, player);
+		if (parsedScore >= Math.max(smartScore * 0.5, 100)) {
+			return parsed;
+		}
+		return { index: smartMove >= 0 ? smartMove : findFallbackMove(), trashTalk: parsed.trashTalk };
+	}
 
-	return { index: findFallbackMove(), trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
+	return { index: smartMove >= 0 ? smartMove : findFallbackMove(), trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
 }
 
 const TRASH_POOL = [
