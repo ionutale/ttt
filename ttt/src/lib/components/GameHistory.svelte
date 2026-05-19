@@ -15,27 +15,29 @@
 </script>
 
 {#if game.history.length > 0}
-	<div class="w-full max-w-md">
-		<h3 class="mb-1 text-sm font-semibold text-base-content/70">Move History</h3>
-		<div class="max-h-48 overflow-y-auto rounded border border-base-300">
+	<div class="rounded-lg border border-base-300/20 bg-base-300/10 p-3 shadow-sm">
+		<h3 class="mb-2 text-xs font-semibold uppercase tracking-widest text-base-content/50">
+			Move History
+		</h3>
+		<div class="max-h-40 overflow-y-auto rounded bg-base-300/20">
 			<table class="table table-xs">
 				<thead>
-					<tr>
+					<tr class="text-base-content/40">
 						<th>#</th>
-						<th>Player</th>
-						<th>Position</th>
+						<th>P</th>
+						<th>Pos</th>
 						<th>Time</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each game.history as entry, i}
-						<tr>
-							<td>{i + 1}</td>
-							<td class="font-bold {entry.player === 'X' ? 'text-primary' : 'text-secondary'}">
+						<tr class="hover:bg-base-300/20">
+							<td class="text-base-content/50">{i + 1}</td>
+							<td class="font-bold {entry.player === 'X' ? 'text-cyan-400' : 'text-pink-400'}">
 								{entry.player}
 							</td>
-							<td>{cellLabel(entry.index)}</td>
-							<td class="tabular-nums">{formatDuration(entry.durationMs)}</td>
+							<td class="tabular-nums text-base-content/80">{cellLabel(entry.index)}</td>
+							<td class="tabular-nums text-base-content/60 text-xs">{formatDuration(entry.durationMs)}</td>
 						</tr>
 					{/each}
 				</tbody>

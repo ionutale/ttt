@@ -22,6 +22,7 @@ export interface GameState {
 	gameActive: boolean;
 	error: string | null;
 	history: HistoryEntry[];
+	lastTrashTalk: string | null;
 }
 
 const SYSTEM_PROMPT = (() => {
@@ -62,6 +63,7 @@ let state: GameState = {
 	gameActive: false,
 	error: null,
 	history: [],
+	lastTrashTalk: null,
 };
 
 function generateWinCombos(): number[][] {
@@ -112,6 +114,7 @@ function cloneState(): GameState {
 		gameActive: state.gameActive,
 		error: state.error,
 		history: state.history,
+		lastTrashTalk: state.lastTrashTalk,
 	};
 }
 
@@ -128,9 +131,9 @@ function buildBoardText(): string {
 	return rows.join('\n');
 }
 
-async function callOllama(): Promise<number> {
+async function callOllama(): Promise<{ index: number; trashTalk: string | null }> {
 	const boardText = buildBoardText();
-	const userMessage = `Current board:\n${boardText}\n\nYour move. Output ONLY: My Move: (Row, Col)`;
+	const userMessage = `Current board:\n${boardText}\n\nYour move. Output:\nMy Move: (Row, Col)\nTrash Talk: <short taunt>`;
 
 	const res = await fetch('http://localhost:11434/api/chat', {
 		method: 'POST',
@@ -142,7 +145,7 @@ async function callOllama(): Promise<number> {
 				{ role: 'user', content: userMessage }
 			],
 			stream: false,
-			options: { temperature: 0.1, num_predict: 20 }
+			options: { temperature: 0.1, num_predict: 50 }
 		})
 	});
 
@@ -153,20 +156,23 @@ async function callOllama(): Promise<number> {
 	const data = await res.json();
 	const content: string = data.message?.content || '';
 
-	const parsed = tryParseMove(content);
+	const parsed = tryParseResponse(content);
 	if (parsed !== null) return parsed;
 
-	return findFallbackMove();
+	return { index: findFallbackMove(), trashTalk: null };
 }
 
-function tryParseMove(text: string): number | null {
+function tryParseResponse(text: string): { index: number; trashTalk: string | null } | null {
+	const trashMatch = text.match(/Trash Talk:\s*(.+?)$/im);
+	const trashTalk = trashMatch ? trashMatch[1].trim() : null;
+
 	const moveMatch = text.match(/My Move:\s*\((\d+)\s*,\s*(\d+)\)/i);
 	if (moveMatch) {
 		const row = parseInt(moveMatch[1], 10) - 1;
 		const col = parseInt(moveMatch[2], 10) - 1;
 		const index = row * GRID_SIZE + col;
 		if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && state.board[index] === null) {
-			return index;
+			return { index, trashTalk };
 		}
 	}
 
@@ -176,7 +182,7 @@ function tryParseMove(text: string): number | null {
 		const col = parseInt(coordMatch[2], 10) - 1;
 		const index = row * GRID_SIZE + col;
 		if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && state.board[index] === null) {
-			return index;
+			return { index, trashTalk };
 		}
 	}
 
@@ -184,7 +190,7 @@ function tryParseMove(text: string): number | null {
 	for (const num of flatNums) {
 		const idx = num - 1;
 		if (idx >= 0 && idx < TOTAL_CELLS && state.board[idx] === null) {
-			return idx;
+			return { index: idx, trashTalk };
 		}
 	}
 
@@ -202,9 +208,10 @@ function findFallbackMove(): number {
 async function triggerAIMove(): Promise<void> {
 	processing = true;
 	state.error = null;
+	state.lastTrashTalk = null;
 	const aiStart = Date.now();
 	try {
-		const aiIndex = await callOllama();
+		const { index: aiIndex, trashTalk } = await callOllama();
 
 		if (aiIndex < 0 || aiIndex >= TOTAL_CELLS || state.board[aiIndex] !== null) {
 			throw new Error('AI returned an invalid move');
@@ -212,6 +219,7 @@ async function triggerAIMove(): Promise<void> {
 
 		const durationMs = Date.now() - aiStart;
 		state.board[aiIndex] = state.currentPlayer;
+		state.lastTrashTalk = trashTalk;
 		recordMove(state.currentPlayer, aiIndex, durationMs);
 		turnStartedAt = Date.now();
 
@@ -244,6 +252,7 @@ export function startGame(mode: 'pvp' | 'ai', aiPlayer?: Player, aiModel?: strin
 		gameActive: true,
 		error: null,
 		history: [],
+		lastTrashTalk: null,
 	};
 	turnStartedAt = Date.now();
 

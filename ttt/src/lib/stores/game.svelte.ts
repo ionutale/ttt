@@ -24,6 +24,7 @@ interface GameState {
 	gameActive: boolean;
 	error: string | null;
 	history: HistoryEntry[];
+	lastTrashTalk: string | null;
 }
 
 const EMPTY_BOARD = Array(GRID_SIZE * GRID_SIZE).fill(null) as (Player | null)[];
@@ -39,10 +40,11 @@ function defaultState(): GameState {
 		gameActive: false,
 		error: null,
 		history: [],
+		lastTrashTalk: null,
 	};
 }
 
-function createGame() {
+	function createGame() {
 	let state = $state<GameState>(defaultState());
 	let loading = $state(false);
 	let chatMessages = $state<ChatMessage[]>([]);
@@ -58,6 +60,7 @@ function createGame() {
 			gameActive: true,
 			error: null,
 			history: [],
+			lastTrashTalk: null,
 		};
 		loading = true;
 		try {
@@ -121,6 +124,10 @@ function createGame() {
 		}
 	}
 
+	function addTrashTalk(text: string) {
+		chatMessages = [...chatMessages, { role: 'ai', text: `*${text}*` }];
+	}
+
 	async function sendChatMessage(text: string) {
 		chatMessages = [...chatMessages, { role: 'human', text }];
 		try {
@@ -151,12 +158,14 @@ function createGame() {
 		get gameActive() { return state.gameActive; },
 		get error() { return state.error; },
 		get chatMessages() { return chatMessages; },
+		get lastTrashTalk() { return state.lastTrashTalk; },
 		get history() { return state.history; },
 		get loading() { return loading; },
 		startGame,
 		makeMove,
 		retryAIMove,
 		sendChatMessage,
+		addTrashTalk,
 		quitGame,
 	};
 }
