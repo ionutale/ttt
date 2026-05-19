@@ -1,42 +1,46 @@
-# sv
+# Tic-Tac-Toe 20×20
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A 20×20 tic-tac-toe game with 5-in-a-row win condition, built with SvelteKit, Tailwind CSS v4, and DaisyUI. Features a local AI opponent via Ollama with trash talk, game history, and server-side game state.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- **20×20 board** — win by getting **5 in a row** (horizontal, vertical, diagonal)
+- **Two modes** — Player vs Player (local) or Player vs AI
+- **AI opponent** — uses Ollama with your choice of installed models; adaptive trash talk that changes tone based on who's winning
+- **Trash talk chat** — have a conversation with the AI; it knows the game state
+- **Move history** — shows every move with timing
+- **Dark neon dashboard** — cyan (X) vs pink (O), dark theme
 
-```sh
-# create a new project
-npx sv create my-app
-```
+## Screenshots
 
-To recreate this project with the same configuration:
+![Game board and sidebar](documentation/images/2026-05-19_19-11.jpg)
 
-```sh
-# recreate this project
-pnpm dlx sv@0.15.3 create --template minimal --types ts --add tailwindcss="plugins:none" --install pnpm ttt
-```
+![Game setup and board](documentation/images/2026-05-19_19-11_1.jpg)
 
-## Developing
+![Game in progress](documentation/images/2026-05-19_19-12.jpg)
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+![Chat and history panel](documentation/images/2026-05-19_19-12_1.jpg)
 
-```sh
-npm run dev
+## Prerequisites
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+- [Ollama](https://ollama.com) installed and running locally
+- At least one model pulled (e.g. `ollama pull gemma4`)
 
-## Building
-
-To create a production version of your app:
+## Getting Started
 
 ```sh
-npm run build
+pnpm install
+pnpm dev
 ```
 
-You can preview the production build with `npm run preview`.
+Open the app, select **vs AI**, pick a model, choose who goes first, and start playing.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Customize the AI's system prompt by editing `ai-oponent-prompt.md` (one level above the project root), then restart the dev server.
+
+## Tech Stack
+
+- [SvelteKit](https://svelte.dev)
+- [Tailwind CSS v4](https://tailwindcss.com)
+- [DaisyUI 5](https://daisyui.com)
+- [Ollama](https://ollama.com)
+- TypeScript
