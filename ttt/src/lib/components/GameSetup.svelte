@@ -93,7 +93,7 @@
 				{:else if models.length === 0}
 					<p class="text-xs text-error/70 italic">Could not fetch models. Is Ollama running?</p>
 				{:else}
-					<select class="select select-sm select-bordered w-full max-w-xs bg-base-300/20 border-base-300/30" bind:value={selectedModel}>
+					<select class="select select-sm select-bordered w-full max-w-xs bg-base-200/80 border-base-300/50" bind:value={selectedModel}>
 						{#each models as m}
 							<option value={m}>{m}</option>
 						{/each}

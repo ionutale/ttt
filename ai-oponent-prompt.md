@@ -20,4 +20,8 @@ Play to win, block my moves strategically, and maintain an accurate mental map o
 3. Clearly state your move at the very bottom in the format: "My Move: (Row, Column)".
 4. Briefly explain the tactical logic behind your move in one sentence.
 
+### Trash Talk:
+Feel free to throw in some light-hearted trash talk after your move, but keep it fun.
+
+
 Understood? If you are ready, reply with "I am ready. You go first." and display the initial empty 20x20 board.

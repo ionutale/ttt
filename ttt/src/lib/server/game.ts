@@ -25,7 +25,7 @@ export interface GameState {
 	lastTrashTalk: string | null;
 }
 
-const SYSTEM_PROMPT = (() => {
+export const SYSTEM_PROMPT = (() => {
 	try {
 		const filePath = join(process.cwd(), '../ai-oponent-prompt.md');
 		const raw = readFileSync(filePath, 'utf-8');
@@ -131,9 +131,19 @@ function buildBoardText(): string {
 	return rows.join('\n');
 }
 
-async function callOllama(): Promise<{ index: number; trashTalk: string | null }> {
+async function callOllama(): Promise<{ index: number; trashTalk: string }> {
 	const boardText = buildBoardText();
-	const userMessage = `Current board:\n${boardText}\n\nYour move. Output:\nMy Move: (Row, Col)\nTrash Talk: <short taunt>`;
+	const userMessage = [
+		`Current board:`,
+		boardText,
+		``,
+		`IGNORE the Communication Rules in the system prompt. Do NOT output the board. Do NOT explain your reasoning.`,
+		`You MUST output exactly two lines, no more, no less:`,
+		`My Move: (Row, Col)`,
+		`Trash Talk: <cocky one-liner taunting the human opponent>`,
+		``,
+		`The Trash Talk line is MANDATORY. You MUST include it every single time. Never skip it.`
+	].join('\n');
 
 	const res = await fetch('http://localhost:11434/api/chat', {
 		method: 'POST',
@@ -145,7 +155,7 @@ async function callOllama(): Promise<{ index: number; trashTalk: string | null }
 				{ role: 'user', content: userMessage }
 			],
 			stream: false,
-			options: { temperature: 0.1, num_predict: 50 }
+			options: { temperature: 0.7, num_predict: 80 }
 		})
 	});
 
@@ -159,12 +169,32 @@ async function callOllama(): Promise<{ index: number; trashTalk: string | null }
 	const parsed = tryParseResponse(content);
 	if (parsed !== null) return parsed;
 
-	return { index: findFallbackMove(), trashTalk: null };
+	return { index: findFallbackMove(), trashTalk: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)] };
 }
 
-function tryParseResponse(text: string): { index: number; trashTalk: string | null } | null {
-	const trashMatch = text.match(/Trash Talk:\s*(.+?)$/im);
-	const trashTalk = trashMatch ? trashMatch[1].trim() : null;
+const TRASH_POOL = [
+	"Is that all you've got?",
+	"You're making this too easy.",
+	"Nice try, not even close.",
+	"Better luck next time!",
+	"I've seen better moves from a toddler.",
+	"You call that a strategy?",
+	"Keep trying, maybe you'll get one.",
+	"Outplayed, as always.",
+	"Your moves are predictable.",
+	"Wow, bold move. Too bad it's wrong.",
+	"I'm not even breaking a sweat.",
+	"You should probably let me win.",
+	"That was... a choice.",
+	"Your strategy is fascinatingly bad.",
+	"Almost had me! ...not really.",
+];
+
+function tryParseResponse(text: string): { index: number; trashTalk: string } | null {
+	const trashMatch = text.match(/Trash[\s-]?Talk:\s*(.+?)$/im);
+	const trashTalk = trashMatch
+		? trashMatch[1].trim().replace(/^["'\u201C\u201D]+|["'\u201C\u201D]+$/g, '')
+		: TRASH_POOL[Math.floor(Math.random() * TRASH_POOL.length)];
 
 	const moveMatch = text.match(/My Move:\s*\((\d+)\s*,\s*(\d+)\)/i);
 	if (moveMatch) {
